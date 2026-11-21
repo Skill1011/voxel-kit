@@ -15,93 +15,78 @@
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/RenderPass.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/ShaderPass.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/UnrealBloomPass.js"></script>
-<script src="https://cdn.jsdelivr.net/gh/Skill1011/voxel-kit@v2.0.0/voxel_kit.js"></script>
+<script src="https://cdn.jsdelivr.net/gh/Skill1011/voxel-kit@v2.1.0/voxel_kit.js"></script>
 <script>
-// Example: "Laternen-Opa", an old prospector with a lantern. Not a zombie: shows the body-part builders
-// (head, hand, boot), a combed beard and hair from strands(), layered clothes as flat panels, one warm light.
-// Order: right limbs -> mirror -> one-sided extras -> pose -> centre -> head and face last.
+// Example (the quality bar): "Zombie-Feuerwehrmann". Built from the body() base (the reference proportions), head() with lit
+// front planes, then clothes as SHAPED pieces (front panels, V lapels, collar ring, hem flaps, reflective bands), wounds,
+// one prop and a pose preset. This is the pattern for every humanoid.
 function buildFigure(VoxelKit) {
-	const fig = new VoxelKit.Figure('LaternenOpa', { seed: 8, jitter: 14 });
+	const fig = new VoxelKit.Figure('ZombieFeuerwehr', { seed: 31, jitter: 9 });
 	const ramp = VoxelKit.ramp;
-	const skin = ramp('#c8714e', 0.8);      // weathered, sunburnt skin
-	const vest = ramp('#1f5a4c');           // teal vest (main colour)
-	const shirt = ramp('#c9b48f', 0.6);     // linen shirt
-	const pants = ramp('#4a3226');          // brown trousers
-	const patch = ['#a6452e', '#8a3a28'];   // red patches (accent)
-	const leather = ramp('#3b2a22');
-	const beard = ['#e9e6e0', '#cfcac2', '#b3ada4'];
-	const brass = ramp('#9c7a2a', 0.7);
-	const flame = VoxelKit.neonRamp('#ffcc4d');
+	const skin = ['#91a467', '#708b53', '#546c41', '#35492b'];     // zombie green: hi, mid, lo, deep
+	const coat = ramp('#a07a43', 0.8);                              // tan turnout coat
+	const refl = ['#f2c21b', '#d6d8d2'];                            // yellow + silver reflective tape
+	const dark = ['#2a2626', '#211e1f', '#363031'];
+	const red = ramp('#b3262f');
+	const ember = VoxelKit.neonRamp('#ff7a1a');                     // one neon family: embers
+	const burn = '#2b2320';
+	const B = (part, p, s, c, o) => fig.box(part, p, s, c, Object.assign({ jitter: 0 }, o || {}));
 
-	// ---------- 1. right limbs ----------
-	fig.boot('BootR', { colors: leather, laces: '#8a6a4a' });
-	// trousers reach from knee to boot cuff and from hip to knee (no gaps), with a patch on the knee
-	fig.chunk('ShinR', [0, -1.55, 0], [1.3, 3.1, 1.25], pants);
-	fig.box('ShinR', [0.05, -0.55, -0.66], [0.75, 0.6, 0.08], patch[0], { jitter: 6, tiltAxis: 2 });
-	fig.chunk('ThighR', [0.05, -1.75, 0], [1.6, 3.1, 1.5], pants);
-	// rolled-up sleeve over a bare forearm, big hand
-	fig.chunk('UpperR', [0.15, -1.1, 0], [1.45, 2.8, 1.4], shirt);
-	fig.box('UpperR', [0.15, -2.3, 0], [1.6, 0.5, 1.55], shirt[0], { jitter: 0 });           // rolled cuff
-	fig.chunk('ForeR', [0.05, -1.25, -0.05], [1.05, 2.3, 1.05], skin);
-	fig.box('ForeR', [0.05, -2.2, -0.05], [1.15, 0.35, 1.15], leather[1], { jitter: 0 });   // leather wrist band
-	fig.hand('HandR', { colors: skin, fingers: 3, curl: 0.35, nails: '#e8c3a8' });
+	// 1. base body: coat on top (rolled sleeves show the forearms), torn trousers, boots with a yellow band
+	const b = fig.body({ skin, top: coat, pants: coat, boots: ['#2a2523', '#2a2523', '#231f1e', '#1a1716'], bootBand: refl[0],
+		belt: dark[0], buckle: '#8a8f96', hands: { curl: 0.55, claws: true } });
+	const fz = b.torsoFront, z0 = b.z0;
 
-	fig.mirror('R');
-
-	// ---------- 3. lantern in the left hand (built hanging down, so it stays upright: the left arm is barely posed) ----------
-	fig.addPart('Lantern', [-2.42, 5.5, -0.4], 'HandL');
-	fig.box('Lantern', [0, -0.2, 0], [0.12, 0.4, 0.12], leather[3], { jitter: 0 });           // handle
-	fig.box('Lantern', [0, -0.45, 0], [0.95, 0.16, 0.95], brass[1], { jitter: 0 });           // top
-	fig.glowCore('Lantern', [0, -1.05, 0], [0.85, 1.05, 0.85], flame[0], { glassColor: '#ffe8b0', frame: '#1d1c20' });
-	fig.box('Lantern', [0, -1.65, 0], [1.05, 0.18, 1.05], brass[2], { jitter: 0 });           // base
-
-	// ---------- 4. pose: a slightly bent old man, lantern arm forward ----------
-	fig.poseBoth('Upper', [8, 0, 4]);
-	fig.pose('UpperL', [22, 0, 0]);
-	fig.pose('ForeL', [38, 0, 0]);
-	fig.pose('Lantern', [-68, 0, 0]);   // the arm turned 8 + 22 + 38 = 68 degrees, turn the lantern back so it hangs straight
-
-	// ---------- 5. centre ----------
-	fig.chunk('Pelvis', [0, -0.3, 0], [3.5, 1.1, 2.0], pants);
-	fig.box('Pelvis', [0, 0.2, 0], [3.65, 0.35, 2.1], leather[2], { jitter: 0 });             // belt
-	fig.box('Pelvis', [0, 0.2, -1.07], [0.55, 0.42, 0.1], brass[0], { jitter: 0 });           // buckle
-	fig.box('Pelvis', [0, 0.2, -1.13], [0.3, 0.2, 0.06], leather[3], { jitter: 0 });
-	// shirt underneath, vest as two front panels and a back panel, buttons, a red neckerchief
-	fig.chunk('Torso', [0, 1.65, 0.05], [3.6, 3.2, 2.0], shirt, { bumps: 4 });
+	// 2. clothes as shaped pieces
+	B('Torso', [0, 1.75, z0 - 1.05], [1.5, 3.2, 0.5], dark[0]);                       // dark shirt in the open front
 	for (const s of [1, -1]) {
-		fig.box('Torso', [s * 1.05, 1.6, -1.08], [1.4, 3.1, 0.16], vest[1], { jitter: 0, rot: [0, 0, -s * 3] });
-		fig.texture('Torso', [s * 1.05, 1.5, -1.16], [1.1, 2.6], vest, { face: '-Z', count: 4 });
-		fig.box('Torso', [s * 1.86, 1.6, 0.05], [0.14, 3.1, 1.9], vest[2], { jitter: 0 });
+		B('Torso', [s * 0.98, 2.45, fz - 0.05], [0.62, 2.0, 0.3], coat[2], { rot: [0, 0, s * 24] });   // lapels in a V
+		fig.band('Torso', [s * 1.45, 0.85, fz], 1.35, refl);
+		fig.band('Torso', [s * 1.45, 2.05, fz], 1.35, refl);
+		fig.band('Torso', [s * 2.255, 0.85, z0], 2.3, refl, { face: s > 0 ? '+X' : '-X' });
+		for (const y of [0.45, 1.45, 2.65]) B('Torso', [s * 0.82, y, fz - 0.05], [0.28, 0.16, 0.1], dark[1]);   // clasps
+		fig.band('Fore' + (s > 0 ? 'R' : 'L'), [s * 0.15, -0.95, -0.9], 1.76, refl);
+		fig.band('Shin' + (s > 0 ? 'R' : 'L'), [s * 0.05, -0.55, z0 - 0.93], 1.86, refl);
 	}
-	fig.box('Torso', [0, 1.6, 1.08], [3.65, 3.1, 0.16], vest[2], { jitter: 0 });
-	for (const y of [0.7, 1.3, 1.9]) fig.box('Torso', [-0.3, y, -1.18], [0.18, 0.18, 0.08], leather[3], { jitter: 0 });
-	fig.line('Torso', [-0.75, 1.55, -1.2], [-1.45, 1.15, -1.2], 0.06, brass[0]);            // watch chain
-	fig.chunk('Torso', [0, 3.05, -0.75], [1.7, 0.5, 0.7], ramp('#a6452e'), { bumps: 3 });
-	fig.box('Torso', [0.45, 2.55, -1.12], [0.45, 0.8, 0.14], patch[0], { jitter: 0, rot: [0, 0, 12] });
+	fig.collar('Torso', [0, 3.75, z0 - 0.15], [1.35, 1.0], 11, [coat[1], coat[2]], { size: [0.78, 0.7, 0.7], jitter: 10 });
+	fig.fringe('Torso', [-2.0, 0.05, fz + 0.1], [2.0, 0.05, fz + 0.1], 9, [0.7, 1.0], [coat[1], coat[2]], { thick: 0.36 });   // coat hem
+	// air tank on the back with straps, radio pouch on the hip
+	B('Torso', [0, 1.9, z0 + 1.55], [1.15, 3.0, 1.15], '#b8bdc4', { mat: 'Metal' });
+	B('Torso', [0, 3.55, z0 + 1.55], [0.5, 0.35, 0.5], '#2b2b2b');
+	for (const s of [1, -1]) B('Torso', [s * 0.95, 1.9, z0 + 1.28], [0.28, 3.6, 0.12], dark[0]);
+	B('Pelvis', [-1.6, -0.35, z0 - 0.4], [0.7, 0.9, 0.9], dark[2]);
 
-	// head with a calm face (glowing warm eyes like every figure), then beard, moustache, eyebrows, hair, hat
-	const h = fig.head('Head', { skin, expression: 'neutral', eyes: '#ffd23f', size: [3.2, 3.2, 2.2] });
-	const f = h.front;
-	// a full beard: two layers of combed strands from cheek to cheek, hanging down over the chest; a moustache on top
-	fig.strands('Head', [0, 0.75, f + 0.25], [3.0, 0.5], 22, [0, -1, -0.12], [1.3, 2.3], beard, { thick: [0.32, 0.46], fan: 16, layers: 2 });
-	fig.strands('Head', [0, 1.05, f - 0.15], [1.9, 0.15], 8, [0, -0.7, -0.3], [0.5, 0.75], beard, { thick: [0.24, 0.3], fan: 38 });
-	fig.strands('Head', [0, 2.6, 1.15], [2.8, 0.3], 9, [0, -1, 0.15], [0.7, 1.2], beard, { thick: [0.3, 0.4], fan: 12 });   // hair at the back under the hat
-	for (const s of [1, -1]) {
-		fig.box('Head', [s * 0.78, 2.3, f - 0.55], [1.1, 0.3, 0.35], beard[1], { jitter: 0, rot: [0, 0, -s * 8] });           // bushy brows
-		fig.strands('Head', [s * 1.55, 1.9, -0.2], [0.1, 1.4], 4, [s * 0.6, -1, 0.2], [0.6, 1.0], beard, { thick: [0.22, 0.3], fan: 10 }); // sideburns
-	}
-	// hat: brim, crown with a band, a feather on its own joint
-	fig.addPart('Hat', [0, 15.9, 0.05], 'Head', { sway: false });
-	fig.box('Hat', [0, 0.05, 0], [4.2, 0.26, 3.6], leather[1], { jitter: 0, rot: [0, 0, 3] });
-	fig.chunk('Hat', [0, 0.75, 0.05], [2.9, 1.3, 2.4], leather, { bumps: 6, skipBottom: true, rot: [0, 0, 3] });
-	fig.box('Hat', [0, 0.35, 0.05], [3.0, 0.3, 2.5], leather[3], { jitter: 0, rot: [0, 0, 3] });
-	fig.addPart('Feather', [-1.3, 16.3, 0.4], 'Hat');
-	fig.strands('Feather', [0, 0, 0], [0.05, 0.05], 3, [-0.25, 1, 0.3], [1.0, 1.4], ['#2f6b5a', '#d9cfb0'], { thick: [0.14, 0.18], fan: 6 });
+	// 3. wounds and embers (the zombie part): burn marks, glowing cracks
+	for (const [x, y] of [[-1.2, 2.9], [1.5, 1.2], [-0.95, 0.4], [1.2, 3.1]]) fig.box('Torso', [x, y, fz - 0.03], [0.42, 0.34, 0.06], burn, { jitter: 20, tiltAxis: 2 });
+	fig.crack('Torso', [1.75, 3.0, fz - 0.04], [1.05, 1.55, fz - 0.04], ember, { normal: [0, 0, -1] });
+	fig.crack('ShinR', [0.25, -2.25, z0 - 0.87], [-0.15, -2.9, z0 - 0.87], ember, { normal: [0, 0, -1], segments: 3 });
 
+	// 4. head: modelled face with ember eyes, stitched scar, burnt cheek; firefighter helmet on its own joint
+	const h = fig.head('Head', { skin, eyes: ember[0], expression: 'angry', gap: 4 });
+	for (let i = 0; i < 6; i++) fig.box('Head', [-1.05 + i * 0.2, h.center[1] + 1.05 - i * 0.05, h.front - 0.14], [0.17, 0.14, 0.06], i % 2 ? '#42181c' : '#6c352f', { jitter: 30, tiltAxis: 2 });
+	fig.texture('Head', [1.15, h.center[1] - 0.5, h.front - 0.24], [0.5, 0.45], [burn, '#3a2c24'], { face: '-Z', count: 3, tile: [0.14, 0.26] });
+	B('Jaw', [0, -0.57, -0.4], [2.66, 0.56, 0.97], skin[1]);
+	fig.addPart('Helmet', [0, 16.15, z0 + 0.1], 'Head', { sway: false });
+	B('Helmet', [0, 0.55, 0], [3.75, 1.3, 2.9], red[1]);
+	B('Helmet', [0, 1.3, 0], [3.0, 0.45, 2.3], red[0]);
+	B('Helmet', [0, 1.6, 0.1], [0.55, 0.45, 2.7], red[2]);
+	B('Helmet', [0, -0.08, 0.5], [4.1, 0.24, 4.0], red[2], { rot: [-6, 0, 0] });
+	B('Helmet', [0, 0.65, -1.52], [1.1, 1.15, 0.16], '#d9c06a');
+	fig.emblem('Helmet', [0, 0.65, -1.62], ['.k.', 'kkk', '.k.'], { k: '#7a1d1d' }, { pixel: 0.2 });
+
+	// 5. prop: a fire axe in the right hand, built hanging down
+	fig.addPart('Axe', [2.6, 5.9, -0.5], 'HandR', { sway: false });
+	B('Axe', [0, -1.3, 0], [0.34, 3.8, 0.34], '#6b4a2c');
+	B('Axe', [0, -3.0, -0.7], [0.3, 1.3, 1.6], '#c22a2a');
+	B('Axe', [0, -3.0, -1.6], [0.22, 1.5, 0.35], '#c9ced4', { mat: 'Metal' });
+	B('Axe', [0, -3.0, 0.55], [0.3, 0.45, 1.0], '#c22a2a');
+
+	// 6. pose last
+	fig.posePreset('zombie');
 	return fig.prune();
 }
 
 </script>
-<script src="https://cdn.jsdelivr.net/gh/Skill1011/voxel-kit@v2.0.0/viewer.js"></script>
+<script src="https://cdn.jsdelivr.net/gh/Skill1011/voxel-kit@v2.1.0/viewer.js"></script>
 </body>
 </html>

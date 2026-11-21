@@ -301,73 +301,207 @@
 		}
 
 		/**
-		 * A clunky boot standing on y = 0 (with the reference joint): core, a wider cuff on top, a sole that sticks out at the
-		 * front, a row of toe caps and optional laces. Reference boot: core ~1.9 x 1.5 x 1.9, cuff 2.07 x 0.43 x 2.03.
-		 * @param o { colors: ramp, scale: 1, toes: 4, laces: colour or null, cuff: colour, sole: colour, at: core centre }
+		 * The reference boot, standing on y = 0 with the default joint: three stacked tiers (shaft 2.06 x 1.59 x 1.99,
+		 * foot 2.22 x 1.16 x 2.52, sole 2.36 x 0.46 x 2.74), optional coloured top band, toe cap and laces.
+		 * @param o { colors: ramp (shaft, foot, sole from it), band: colour or null, toes: 0 (number of small toe caps),
+		 *            toeCap: colour, laces: colour, scale: 1, x: 0.1, z: depth of the shaft centre (default 0.15) }
 		 */
 		boot(part, o) {
 			o = o || {};
-			const sc = o.scale || 1, col = o.colors || ramp('#4a3a33');
-			const s = [1.75 * sc, 1.45 * sc, 2.05 * sc], c = o.at || [0, -1.05 * sc, -0.2 * sc];
-			this.box(part, c, s, col[1], { jitter: 0 });
-			this.box(part, [c[0], c[1] + s[1] / 2, c[2] + 0.12 * sc], [s[0] * 1.08, 0.42 * sc, s[2] * 0.8], o.cuff || col[2], { jitter: 0 });   // cuff top reaches the shin
-			this.box(part, [c[0], c[1] - s[1] / 2 - 0.02 * sc, c[2] - 0.12 * sc], [s[0] * 1.07, 0.2 * sc, s[2] * 1.12], o.sole || col[3], { jitter: 0 });
-			const n = o.toes === undefined ? 4 : o.toes;
-			for (let i = 0; i < n; i++) {
-				const x = c[0] - s[0] / 2 + (i + 0.5) * s[0] / n;
-				this.box(part, [x, c[1] - s[1] / 2 + 0.28 * sc, c[2] - s[2] / 2 - 0.08 * sc], [s[0] / n * 0.86, 0.3 * sc, 0.36 * sc], col[0], { jitter: 0 });
-			}
-			if (o.laces) for (let i = 0; i < 3; i++)
-				this.box(part, [c[0], c[1] + s[1] * 0.2 - i * 0.28 * sc, c[2] - s[2] / 2 - 0.03], [s[0] * 0.5, 0.08 * sc, 0.06], o.laces, { jitter: 0, rot: [0, 0, i % 2 ? 14 : -14] });
-			this.texture(part, [c[0] + s[0] / 2, c[1], c[2]], [s[2] * 0.8, s[1] * 0.6], col, { face: '+X', count: 3 });
-			this.texture(part, [c[0] - s[0] / 2, c[1], c[2]], [s[2] * 0.8, s[1] * 0.6], col, { face: '-X', count: 3 });
+			const sc = o.scale || 1, col = o.colors || ramp('#3a2c26'), z = o.z === undefined ? 0.15 : o.z;
+			const x = o.x === undefined ? (part.endsWith('L') ? -0.1 : 0.1) : o.x;
+			const B = (p, s, c, q) => this.box(part, [p[0], p[1] * sc, p[2]], s.map(v => v * sc), c, Object.assign({ jitter: 0 }, q || {}));
+			B([x, -0.6, z], [2.06, 1.59, 1.99], col[1]);
+			B([x, -1.18, z - 0.3], [2.22, 1.16, 2.52], col[2] || col[1]);
+			B([x, -1.72, z - 0.3], [2.36, 0.46, 2.74], col[3] || col[2] || col[1]);
+			if (o.band) B([x, 0.12, z], [2.12, 0.3, 2.05], o.band);
+			if (o.toeCap) B([x, -1.25, z - 1.52], [1.7, 0.7, 0.14], o.toeCap);
+			const n = o.toes || 0;
+			for (let i = 0; i < n; i++) B([x - 1.0 + (i + 0.5) * 2.0 / n, -1.5, z - 1.6], [2.0 / n * 0.85, 0.3, 0.3], col[0]);
+			if (o.laces) for (let i = 0; i < 3; i++) B([x, -0.2 - i * 0.32, z - 1.02], [1.1, 0.09, 0.08], o.laces, { rot: [0, 0, i % 2 ? 14 : -14] });
 		}
 
 		/**
-		 * A head with a readable face, built like the reference: big core, overhanging brow block, dark brow ridges over deep
-		 * dark sockets with (glowing) eyes, nose, cheeks, side planes, a dark mouth with an even row of teeth, a lip, and thin
-		 * painted wrinkles on the forehead. Returns { core, front } so hats, hair and scars can be placed on it.
-		 * @param o { skin: ramp, scale: 1, at: core centre (default [0,1.65,-0.15]), size: core size (default [3.3,3.3,2.3]),
-		 *            expression: 'angry' | 'neutral' | 'grin', eyes: colour, glow: true, mouth: 'open' | 'closed',
-		 *            teeth: 6, gap: index of a missing tooth or -1, toothColors, lip: colour, sides: true }
+		 * The shared base body of the reference (all 9 reference zombies use exactly this): thick limbs, a wide torso, three-tier
+		 * boots, plus clothing layers on top. Builds BOTH sides (no mirror needed) and returns the important surfaces so you
+		 * can add clothes, belts, badges and wounds on them. Call it first, then add details, then pose.
+		 * Measured: upper arm 1.62 x 2.63 x 1.66 + shoulder 1.88 x 1.14 x 1.95, forearm 1.54 x 2.3 x 1.53 + cuff 1.76 x 1.48 x 1.78,
+		 * thigh 1.84 x 3.07 x 1.94, shin 1.66 x 3.09 x 1.71 + trouser cuff 1.86 x 1.88 x 1.8, pelvis 4.28 x 1.6 x 2.34 + belt 4.58 x 0.61,
+		 * torso 4.45 x 3.87 x 2.51.
+		 * @param o {
+		 *   skin: ramp [hi, mid, lo, deep] (default zombie green),
+		 *   top: ramp for torso, shoulders, sleeves (shirt / jacket / coat), topFront: lighter front colour (default top[0]),
+		 *   sleeves: 'rolled' (skin forearm + cuff, default) | 'long' | 'bare',
+		 *   pants: ramp, legs: 'torn' (skin shin below a torn cuff, default) | 'long' | 'bare',
+		 *   hole: true (a torn hole in the trousers showing skin on the right thigh), belt: colour or null, buckle: colour,
+		 *   boots: ramp, bootBand: colour, laces: colour, hands: options for hand(), z0: 0.15,
+		 *   detail: 'rich' (default: torn sleeve ring, painted skin and fabric tiles front/back/sides) | 'plain', rags: false (no sleeve ring) }
+		 * @returns { z0, torsoFront, pelvisFront, shoulderTop } (torsoFront = z just in front of the front panels)
+		 */
+		body(o) {
+			o = o || {};
+			const skin = o.skin || ramp('#708b53'), top = o.top || ramp('#5a4a6a'), pants = o.pants || ramp('#3d3a52');
+			const z0 = o.z0 === undefined ? 0.15 : o.z0, first = this.voxels.length;
+			const B = (part, p, s, c, q) => this.box(part, p, s, c, Object.assign({ jitter: 0 }, q || {}));
+			for (const side of ['R', 'L']) {
+				const k = side === 'R' ? 1 : -1, X = x => x * k;
+				B('Upper' + side, [X(0.3), -1.25, 0.05], [1.62, 2.63, 1.66], o.sleeves === 'bare' ? skin[1] : top[1]);
+				B('Upper' + side, [X(0.15), -0.3, 0.05], [1.88, 1.14, 1.95], top[2]);
+				B('Fore' + side, [X(0.15), -1.15, 0], [1.54, 2.3, 1.53], o.sleeves === 'long' ? top[1] : skin[1]);
+				if (o.sleeves !== 'bare') B('Fore' + side, [X(0.15), -0.55, 0], [1.76, 1.48, 1.78], top[2]);
+				this.hand('Hand' + side, Object.assign({ colors: skin, fingers: 3, curl: 0.55, scale: 1.1, nails: '#d8cfa8' }, o.hands || {}));
+				B('Thigh' + side, [X(0.05), -1.6, z0], [1.84, 3.07, 1.94], o.legs === 'bare' ? skin[1] : pants[1]);
+				B('Shin' + side, [X(0.05), -1.5, z0], [1.66, 3.09, 1.71], o.legs === 'long' ? pants[1] : skin[2]);
+				if (o.legs !== 'bare') {
+					B('Shin' + side, [X(0.05), -0.95, z0], [1.86, 1.95, 1.84], pants[2]);
+					if (o.legs !== 'long') this.fringe('Shin' + side, [X(-0.85), -1.9, z0 - 0.93], [X(0.95), -1.9, z0 - 0.93], 5, [0.15, 0.45], [pants[2], pants[3]], { thick: 0.12 });
+				}
+				this.boot('Boot' + side, { colors: o.boots || ramp('#3a2c26'), band: o.bootBand, laces: o.laces, x: X(0.1), z: z0 });
+			}
+			if (o.hole !== false && o.legs !== 'bare') {
+				B('ThighR', [0.15, -1.7, z0 - 0.98], [1.0, 1.1, 0.1], skin[1]);
+				for (const [x, y] of [[-0.35, -1.15], [0.65, -1.2], [-0.35, -2.25], [0.7, -2.2], [0.15, -1.1], [0.2, -2.3]])
+					this.box('ThighR', [x, y, z0 - 1.0], [0.32, 0.26, 0.08], pants[3], { jitter: 20, tiltAxis: 2 });
+			}
+			B('Pelvis', [0, -0.38, z0], [4.28, 1.6, 2.34], pants[1]);
+			if (o.belt !== null) B('Pelvis', [0, 0.11, z0], [4.58, 0.61, 2.53], o.belt || '#2a2626');
+			if (o.buckle) B('Pelvis', [0, 0.11, z0 - 1.3], [0.62, 0.48, 0.1], o.buckle);
+			B('Torso', [0, 1.64, z0], [4.45, 3.87, 2.51], top[1]);
+			const fz = z0 - 1.255;
+			for (const s of [1, -1]) B('Torso', [s * 1.45, 1.56, fz - 0.05], [1.35, 3.63, 0.4], o.topFront || top[0]);
+			// detail layer of the reference: rings / rows of equal pieces and thin painted tiles (o.detail: 'plain' switches it off)
+			if (o.detail !== 'plain') {
+				for (const side of ['R', 'L']) {
+					const k = side === 'R' ? 1 : -1, X = x => x * k;
+					if (o.sleeves !== 'bare' && o.rags !== false) this.collar('Upper' + side, [X(0.3), -1.0, 0.05], [0.92, 0.92], 7, [top[1], top[2], top[0]], { arc: 1, size: [0.44, 1.05, 0.62], jitter: 18 });
+					if (o.sleeves !== 'long') this.texture('Fore' + side, [X(0.15), -1.55, -0.77], [1.2, 1.1], skin, { face: '-Z', count: 5 });
+					if (o.legs !== 'long' && o.legs !== 'bare') this.texture('Shin' + side, [X(0.05), -2.45, z0 - 0.86], [1.3, 0.9], skin, { face: '-Z', count: 4 });
+					if (o.legs !== 'bare') this.texture('Thigh' + side, [X(0.05), -0.8, z0 - 0.97], [1.5, 0.9], [pants[0], pants[2]], { face: '-Z', count: 4 });
+					if (o.legs === 'long') this.collar('Boot' + side, [X(0.1), 0.1, z0], [1.05, 1.0], 8, [pants[1], pants[2]], { arc: 1, size: [0.39, 0.78, 0.49], jitter: 14 });
+				}
+				for (const s of [1, -1]) this.texture('Torso', [s * 1.45, 1.1, fz - 0.25], [1.1, 2.4], [o.topFront || top[0], top[1]], { face: '-Z', count: 5 });
+				this.texture('Torso', [0, 1.7, z0 + 1.255], [3.8, 3.2], [top[1], top[2]], { face: '+Z', count: 9 });            // back
+				for (const s of [1, -1]) this.texture('Torso', [s * 2.225, 1.7, z0], [2.0, 3.0], [top[1], top[2]], { face: s > 0 ? '+X' : '-X', count: 4 });
+				this.texture('Pelvis', [0, -0.55, z0 - 1.17], [3.6, 0.8], [pants[0], pants[2]], { face: '-Z', count: 5 });
+			}
+			for (let i = first; i < this.voxels.length; i++) this.voxels[i].mirrored = true;   // mirror('R') must not copy these again
+			return { z0, torsoFront: fz - 0.25, pelvisFront: z0 - 1.17, shoulderTop: 8.65 + 1.64 + 1.94 };
+		}
+
+		/**
+		 * A head modelled like the reference: a skull in the side colour, lit front planes (forehead, nose bridge, cheekbones)
+		 * one shade LIGHTER, dark brow ridges over very dark sockets with small (glowing) eyes, nose tip, lower cheeks, ears,
+		 * neck, a mouth (open with an even row of teeth, or a closed dark line with a lip). Front = -Z.
+		 * @param o { skin: ramp [hi, mid, lo, deep], front: colour for the lit planes (default lighter than hi),
+		 *            expression: 'angry' | 'neutral' | 'grin', eyes: colour, glow: true, eyeStyle: 'glow' | 'human' (white eye + pupil),
+		 *            mouth: 'open' | 'closed',
+		 *            teeth: 6, gap: index of a missing tooth, toothColors, lip, z: centre depth (default 0.17),
+		 *            size: [3.47, 3.4, 2.6], ears: true, neck: true }
+		 * @returns { center, size, front, top } (front = z of the face plane, top = y of the scalp, relative to the joint)
 		 */
 		head(part, o) {
 			o = o || {};
-			const sc = o.scale || 1, skin = o.skin || ramp('#708b53');
-			const S = (o.size || [3.3, 3.3, 2.3]).map(x => x * sc), C = o.at || [0, 1.65 * sc, -0.15 * sc];
-			const fz = C[2] - S[2] / 2;                       // front face z
-			const ex = o.expression || 'angry', dark = '#1d1715', socket = '#1a1d12';
-			this.box(part, C, S, skin[2], { jitter: 0 });
-			this.box(part, [C[0], C[1] + S[1] * 0.33, fz + 0.15 * sc], [S[0] * 0.9, 0.86 * sc, 1.05 * sc], skin[1], { jitter: 0 }); // brow block
-			if (o.sides !== false) for (const sx of [1, -1])
-				this.box(part, [C[0] + sx * (S[0] / 2 - 0.22 * sc), C[1] - 0.05 * sc, fz + 0.5 * sc], [0.56 * sc, S[1] * 0.86, 1.1 * sc], skin[1], { jitter: 0 });
-			const eyeY = C[1] + S[1] * 0.15, eyeX = S[0] * 0.24;
-			for (const sx of [1, -1]) {
-				const browRot = ex === 'angry' ? sx * 16 : ex === 'grin' ? -sx * 6 : 0;
-				this.box(part, [C[0] + sx * eyeX, eyeY + 0.36 * sc, fz - 0.42 * sc], [S[0] * 0.38, 0.29 * sc, 0.54 * sc], skin[3], { jitter: 0, rot: [0, 0, browRot] });
-				this.box(part, [C[0] + sx * eyeX, eyeY, fz - 0.06 * sc], [S[0] * 0.36, 0.66 * sc, 0.2 * sc], socket, { jitter: 0 });
-				const eyeCol = o.eyes || '#9cff10';
-				this.box(part, [C[0] + sx * eyeX, eyeY - 0.02 * sc, fz - 0.18 * sc], [S[0] * 0.2, 0.36 * sc, 0.16 * sc], eyeCol,
-					{ jitter: 0, mat: o.glow === false ? 'SmoothPlastic' : 'Neon', name: 'EyeGlow' });
-				this.box(part, [C[0] + sx * S[0] * 0.3, C[1] - S[1] * 0.1, fz - 0.14 * sc], [0.8 * sc, 0.28 * sc, 0.32 * sc], skin[0], { jitter: 0 }); // cheek
+			const sk = o.skin || ramp('#708b53');
+			const front = o.front || toHex(toRGB(sk[0]).map(v => Math.min(255, Math.round(v * 1.12))));
+			const S = o.size || [3.47, 3.4, 2.6], C = [0, 2.0, o.z === undefined ? 0.17 : o.z], f = C[2] - S[2] / 2;
+			const ex = o.expression || 'angry';
+			const B = (p, s, c, q) => this.box(part, p, s, c, Object.assign({ jitter: 0 }, q || {}));
+			if (o.neck !== false) B([0, 0.15, C[2]], [1.38, 1.12, 1.36], sk[3]);
+			B(C, S, sk[2]);
+			B([0, C[1] + 1.1, f + 0.12], [S[0] * 0.82, 1.0, 0.49], front);
+			for (const s of [1, -1]) {
+				const brow = ex === 'angry' ? s * 13 : ex === 'grin' ? -s * 5 : 0;
+				B([s * 0.8, C[1] + 0.75, f - 0.17], [1.44, 0.3, 0.52], sk[3], { rot: [0, 0, brow] });
+				B([s * 0.75, C[1] + 0.36, f - 0.05], [1.21, 0.6, 0.21], '#2b2a22');
+				B([s * 0.74, C[1] + 0.34, f - 0.19], [0.63, 0.27, 0.16], '#3c3d2c');
+				if (o.eyeStyle === 'human') {   // white eyeball + dark pupil, looking slightly inwards
+					B([s * 0.74, C[1] + 0.33, f - 0.25], [0.62, 0.32, 0.08], '#f1ede4');
+					B([s * 0.62, C[1] + 0.32, f - 0.3], [0.22, 0.28, 0.06], o.eyes || '#2a1d14');
+				} else B([s * 0.72, C[1] + 0.33, f - 0.28], [0.3, 0.19, 0.06], o.eyes || '#9cff10', { mat: o.glow === false ? 'SmoothPlastic' : 'Neon', name: 'EyeGlow' });
+				B([s * 1.16, C[1] - 0.17, f - 0.11], [0.86, 0.39, 0.45], front, { rot: [0, 0, -s * 20] });
+				B([s * 1.24, C[1] - 0.72, f - 0.03], [0.7, 0.77, 0.41], sk[1]);
+				if (o.ears !== false) B([s * (S[0] / 2 + 0.02), C[1] + 0.18, C[2] - 0.2], [0.6, 0.93, 0.69], sk[1]);
 			}
-			this.box(part, [C[0], C[1] - S[1] * 0.06, fz - 0.2 * sc], [0.4 * sc, 0.42 * sc, 0.42 * sc], skin[3], { jitter: 0 }); // nose
+			B([0, C[1] + 0.07, f - 0.26], [0.45, 0.7, 0.61], front);
+			B([0, C[1] - 0.26, f - 0.47], [0.61, 0.32, 0.4], sk[0]);
 			const open = (o.mouth || (ex === 'neutral' ? 'closed' : 'open')) === 'open';
-			const mY = C[1] - S[1] * 0.3;
+			const tc = o.toothColors || ['#e8dcc4', '#d3c3a6'];
 			if (open) {
-				this.box(part, [C[0], mY, fz - 0.03 * sc], [S[0] * 0.62, 0.95 * sc, 0.12 * sc], dark, { jitter: 0 });
-				const nt = o.teeth === undefined ? 6 : o.teeth, tw = S[0] * 0.56 / Math.max(1, nt), tc = o.toothColors || ['#efdac4', '#dcbea5'];
-				for (let i = 0; i < nt; i++) {
-					if (i === o.gap) continue;
-					this.box(part, [C[0] - S[0] * 0.28 + tw * (i + 0.5), mY + 0.3 * sc - (i % 2) * 0.03, fz - 0.14 * sc], [tw * 0.86, 0.3 * sc, 0.22 * sc], tc[i % tc.length], { jitter: 0 });
-				}
-				this.box(part, [C[0], mY - 0.4 * sc, fz - 0.1 * sc], [S[0] * 0.36, 0.3 * sc, 0.18 * sc], o.lip || '#642e28', { jitter: 0 });
+				B([0, C[1] - 0.95, f - 0.04], [1.9, 0.72, 0.14], '#1b1310');
+				const nt = o.teeth === undefined ? 6 : o.teeth;
+				for (let i = 0; i < nt; i++) if (i !== o.gap) B([-0.72 + i * 1.45 / Math.max(1, nt - 1), C[1] - 0.72, f - 0.14], [0.22, 0.3 - (i % 2) * 0.06, 0.2], tc[i % tc.length]);
+				B([0, C[1] - 1.38, f - 0.08], [1.2, 0.22, 0.2], o.lip || '#4a2a24');
 			} else {
-				this.box(part, [C[0], mY, fz - 0.06 * sc], [S[0] * 0.42, 0.14 * sc, 0.1 * sc], dark, { jitter: 0, rot: [0, 0, ex === 'grin' ? 4 : 0] });
+				B([0, C[1] - 0.63, f - 0.1], [1.18, 0.17, 0.19], sk[2]);
+				B([0, C[1] - 0.73, f - 0.04], [1.26, 0.18, 0.19], '#1b1919', { rot: [0, 0, ex === 'grin' ? 5 : 0] });
 			}
-			this.texture(part, [C[0], C[1] + S[1] * 0.33, fz + 0.15 * sc - 0.525 * sc], [S[0] * 0.8, 0.6 * sc], skin, { face: '-Z', count: 6, tile: [0.14, 0.38] });
-			this.texture(part, [C[0], C[1] + S[1] / 2, C[2]], [S[0] * 0.8, S[2] * 0.7], skin, { face: '+Y', count: 4 });
-			return { core: C, size: S, front: fz };
+			return { center: C, size: S, front: f, top: C[1] + S[1] / 2 };
+		}
+
+		/**
+		 * Hair like the reference: parallel bars lying flat on the scalp from the hairline to the back, short fringe bits at the
+		 * front and stepped sideburns. Pass the object returned by head().
+		 * @param o { style: 'combed' (default) | 'buzz' (short flat cap) | 'spiky' (bars standing up), bars: 11, sideburns: true }
+		 */
+		hairCombed(part, h, colors, o) {
+			o = o || {};
+			const cols = Array.isArray(colors) ? colors : [colors];
+			const [W, , D] = h.size, top = h.top, cz = h.center[2], n = o.bars || 11, w = W * 0.98 / n;
+			this.box(part, [0, top + 0.05, cz + 0.08], [W * 0.98, 0.44, D * 0.94], cols[Math.min(1, cols.length - 1)], { jitter: 0 });
+			if (o.style !== 'buzz') for (let i = 0; i < n; i++) {
+				const x = -W * 0.49 + (i + 0.5) * w, arch = 0.18 * (1 - Math.abs(x) / (W / 2));
+				if (o.style === 'spiky') {
+					this.box(part, [x, top + 0.55 + arch, cz + this.rand(-0.3, 0.6)], [w * 0.9, this.rand(0.6, 1.0), 0.5], this.pick(cols), { jitter: 0, rot: [this.rand(-25, 5), 0, -x * 8] });
+					continue;
+				}
+				this.box(part, [x, top + 0.34 + arch, cz + 0.25], [w * 0.98, 0.27, D * 0.88], this.pick(cols), { jitter: 0, rot: [0, 0, -x * 4] });
+				this.box(part, [x, top + 0.28 + arch, h.front + 0.05], [w * 1.08, 0.17, 0.3], this.pick(cols), { jitter: 0, rot: [0, 0, -x * 4] });
+			}
+			if (o.sideburns !== false) for (const s of [1, -1]) for (let i = 0; i < 5; i++)
+				this.box(part, [s * (W / 2 - 0.03 - i * 0.04), top - 0.3 - i * 0.22, cz + 0.05], [0.32, 0.45, D * 0.66], this.pick(cols), { jitter: 0, rot: [0, 0, s * 15] });
+		}
+
+		/**
+		 * A ring of blocks: turned-up collars, fur collars, scarves, neck rings, crowns, wreaths, spike belts.
+		 * @param center ring centre (relative to the joint), radius [rx, rz] or one number
+		 * @param o      { arc: 0.9 (share of the circle, centred on the back +Z), size: [0.8, 0.64, 0.74], jitter: 14 }
+		 */
+		collar(part, center, radius, count, colors, o) {
+			o = o || {};
+			const cols = Array.isArray(colors) ? colors : [colors];
+			const [rx, rz] = Array.isArray(radius) ? radius : [radius, radius];
+			const arc = (o.arc === undefined ? 0.9 : o.arc) * Math.PI * 2, s = o.size || [0.8, 0.64, 0.74];
+			for (let i = 0; i < count; i++) {
+				const a = Math.PI / 2 - arc / 2 + arc * (count > 1 ? i / (count - 1) : 0.5);
+				this.box(part, [center[0] + Math.cos(a) * rx, center[1], center[2] + Math.sin(a) * rz], s, cols[i % cols.length],
+					{ jitter: o.jitter === undefined ? 14 : o.jitter, rot: [0, 90 - a / D2R, 0] });
+			}
+		}
+
+		/** Two-tone stripe band on a face: reflective tape, uniform trim, sport stripes. o: { face: '-Z' | '+X' | '-X', height: 0.42 } */
+		band(part, center, width, colors, o) {
+			o = o || {};
+			const face = o.face || '-Z', h = o.height || 0.42, cols = Array.isArray(colors) ? colors : [colors];
+			const size = hh => face === '-Z' ? [width, hh, 0.05] : [0.05, hh, width];
+			const out = d => face === '-Z' ? [0, 0, -d] : face === '+X' ? [d, 0, 0] : [-d, 0, 0];
+			this.box(part, center, size(h), cols[0], { jitter: 0 });
+			if (cols[1]) { const d = out(0.03); this.box(part, [center[0] + d[0], center[1], center[2] + d[2]], size(h * 0.4), cols[1], { jitter: 0 }); }
+		}
+
+		/**
+		 * Ready-made poses, call after everything is built (they turn limbs about their joints):
+		 * 'zombie' (left arm reaches, right low, hunched, head tilted), 'reach' (both arms forward), 'hunch', 'stand'.
+		 */
+		posePreset(name) {
+			const P = {
+				zombie: [['UpperL', [62, 0, -8]], ['ForeL', [18, 0, 0]], ['HandL', [-25, 0, 0]], ['UpperR', [12, 0, 6]], ['ForeR', [28, 0, 0]], ['Head', [8, 0, -6]], ['Torso', [9, 0, 0]]],
+				reach: [['UpperR', [70, 0, 6]], ['UpperL', [64, 0, -6]], ['ForeR', [12, 0, 0]], ['ForeL', [16, 0, 0]], ['HandR', [-25, 0, 0]], ['HandL', [-25, 0, 0]], ['Head', [6, 0, 5]], ['Torso', [8, 0, 0]]],
+				hunch: [['UpperR', [10, 0, 5]], ['UpperL', [14, 0, -5]], ['ForeR', [20, 0, 0]], ['ForeL', [24, 0, 0]], ['Head', [10, 0, 0]], ['Torso', [12, 0, 0]]],
+				stand: [['UpperR', [4, 0, 5]], ['UpperL', [4, 0, -5]], ['ForeR', [10, 0, 0]], ['ForeL', [10, 0, 0]]],
+			}[name];
+			if (!P) throw new Error('Unknown pose preset ' + name + ' (zombie, reach, hunch, stand)');
+			for (const [p, r] of P) if (this.parts[p]) this.pose(p, r);
+			return this;
 		}
 
 		/**
@@ -611,7 +745,7 @@
 		mirror(from) {
 			from = from || 'R';
 			const to = from === 'R' ? 'L' : 'R';
-			const src = this.voxels.filter(v => v.part.endsWith(from));
+			const src = this.voxels.filter(v => v.part.endsWith(from) && !v.mirrored);
 			for (const v of src) {
 				const target = v.part.slice(0, -1) + to;
 				if (!this.parts[target]) {
@@ -620,11 +754,18 @@
 					this.parts[target] = { joint: [-sp.joint[0], sp.joint[1], sp.joint[2]], parent: par };
 				}
 				const R = v.R;
-				this.voxels.push({
+				v.mirrored = true;
+				this.voxels.push({ mirrored: true,
 					part: target, p: [-v.p[0], v.p[1], v.p[2]], s: v.s.slice(), c: v.c.slice(), mat: v.mat, t: v.t, shape: v.shape, name: v.name,
 					R: [R[0], -R[1], -R[2], -R[3], R[4], R[5], -R[6], R[7], R[8]],
 				});
 			}
+			return this;
+		}
+
+		/** Remove every voxel of a body part (e.g. clear('ForeR') before building a cannon arm in its place). */
+		clear(part) {
+			this.voxels = this.voxels.filter(v => v.part !== part);
 			return this;
 		}
 

@@ -16,3 +16,18 @@ Einbinden (Version fest angeben):
 ```
 
 three.js r128 und die Bloom-Add-ons müssen vorher geladen sein, siehe `beispiel.html`.
+
+## stud/ (seit v2.2.0)
+
+Zweiter Baukasten für Modelle im Noppen-Stil (eckige Roblox-Studs als Textur, eine schwarze Silhouetten-Linie, Leuchten nur an Augen und Kernen):
+
+- `stud/studkit.js`: `StudKit.Creature` (Tiere und Pets aus Kisten an Knochen, Animations-Clips, Export `.rbxmx` mit Motor6D und Animator-Modul, `Data/Clips.luau`), `StudKit.Grid` (Bosse aus geformten Klötzchen-Gittern, Plattenfugen, Palette, optionales Skelett, Export `.glb` bis 20k Dreiecke pro Teil), `StudKit.Building` (Gebäude in Einheiten mit Stein-, Brett-, Schindel- und Balkenmuster, feine Details).
+- `stud/studviewer.js`: Vorschau mit Noppen-Shader, Umriss, Leuchten, Ansichten, Clips und Download-Knöpfen. Erwartet `function build(StudKit) { ...; return model; }` auf der Seite.
+
+```html
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+<script src="https://cdn.jsdelivr.net/gh/Skill1011/voxel-kit@v2.2.0/stud/studkit.js"></script>
+<script>function build(StudKit) { /* ... */ }</script>
+<script src="https://cdn.jsdelivr.net/gh/Skill1011/voxel-kit@v2.2.0/stud/studviewer.js"></script>
+```
